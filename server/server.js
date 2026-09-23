@@ -28,78 +28,23 @@ const okurl = u => {
 };
 const run = (cmd,args,opts={}) => exec(cmd,args,{maxBuffer:30*1024*1024,...opts});
 const ytArgs = args => ["--js-runtimes","deno","--remote-components","ejs:github",...args];
-const ytExtractArgs = ["--extractor-args","youtube:player_client=default,-android_sdkless"];
+const ytExtractArgs = [];
 const COBALT_URL = String(process.env.COBALT_URL || "http://127.0.0.1:9000").replace(/\/$/,"");
 
-async function downloadViaPiped(source, outFile){
-  const m=source.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|live\/))([A-Za-z0-9_-]{11})/i);
-  if(!m) throw new Error("Could not read the YouTube video ID.");
-  const id=m[1];
-  const instances=[
-    "https://pipedapi.kavin.rocks",
-    "https://api.piped.yt",
-    "https://pipedapi.leptons.xyz",
-    "https://pipedapi.nosebs.ru"
-  ];
-  let last="Piped source unavailable.";
-  for(const base of instances){
-    try{
-      const res=await fetch(base+"/streams/"+id,{headers:{"User-Agent":"ClipForge/1.0","Accept":"application/json"},signal:AbortSignal.timeout(30000)});
-      if(!res.ok) throw new Error("HTTP "+res.status);
-      const data=await res.json();
-      if(data?.hls){
-        await run("ffmpeg",["-y","-i",data.hls,"-c","copy","-t","3600",outFile],{timeout:70*60*1000});
-      } else {
-        const streams=(data?.videoStreams||[])
-          .filter(x=>x?.url && x?.mimeType?.startsWith("video/mp4") && !x.videoOnly)
-          .sort((x,y)=>(Number(y.height)||0)-(Number(x.height)||0));
-        const stream=streams.find(x=>(Number(x.height)||0)<=1080)||streams[0];
-        if(!stream) throw new Error("No downloadable MP4 stream returned.");
-        await run("ffmpeg",["-y","-i",stream.url,"-c","copy",outFile],{timeout:70*60*1000});
-      }
-      const st=await fs.stat(outFile);
-      if(st.size>10000) return {duration:Number(data?.duration)||0};
-      throw new Error("Empty video returned.");
-    }catch(e){ last=String(e?.message||e); }
-  }
-  throw new Error("YouTube source could not be fetched through the available source servers: "+last);
-}const id = () => crypto.randomUUID();
-
-function safeFile(p){ return p.replaceAll("\\","/").replaceAll("'","\\'"); }
-
-async function writeSrtForClip(segments,start,end,file){
-  const lines=[]; let n=1;
-  for(const s of segments||[]){
-    const a=Math.max(start,Number(s.start));
-    const b=Math.min(end,Number(s.end));
-    if(b<=a || !s.text?.trim()) continue;
-    const relA=a-start, relB=b-start;
-    const stamp=t=>{const ms=Math.max(0,Math.round(t*1000));const h=Math.floor(ms/3600000);const m=Math.floor(ms%3600000/60000);const sec=Math.floor(ms%60000/1000);const mm=ms%1000;return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")},${String(mm).padStart(3,"0")}`};
-    lines.push(`${n++}\n${stamp(relA)} --> ${stamp(relB)}\n${s.text.trim()}\n`);
-  }
-  await fs.writeFile(file,lines.join("\n"),"utf8");
-  return lines.length>0;
-}
 
 async function job(j){
   const dir=path.join(WORK,j.id);
   await fs.mkdir(dir,{recursive:true});
   try{
     j.stage="Inspecting"; j.message="Preparing the source…"; j.progress=8;
-    const isYouTube=/((youtube\\.com)|(youtu\\.be))/i.test(j.source);
-    let meta=null;
     const target=path.join(dir,"source.mp4");
+    let meta=null;
 
-    if(isYouTube){
-      j.stage="Downloading"; j.message="Getting the YouTube source…"; j.progress=18;
-      const pipedInfo=await downloadViaPiped(j.source,target);
-      meta={duration:pipedInfo.duration};
-    } else {
-      const info=await run("yt-dlp",ytArgs([...ytExtractArgs,"--no-playlist","--dump-single-json",j.source]),{timeout:120000});
-      try{meta=JSON.parse(info.stdout)}catch{}
-      j.stage="Downloading"; j.message="Getting the source video…"; j.progress=18;
-      await run("yt-dlp",ytArgs([...ytExtractArgs,"--no-playlist","-f","bv*[height<=1080]+ba/b[height<=1080]/b","--merge-output-format","mp4","--retries","3","--fragment-retries","3","-o",target]),{timeout:25*60*1000});
-    }
+    const info=await run("yt-dlp",ytArgs(["--no-playlist","--dump-single-json",j.source]),{timeout:180000});
+    try{meta=JSON.parse(info.stdout)}catch{}
+
+    j.stage="Downloading"; j.message="Downloading the source video…"; j.progress=18;
+    await run("yt-dlp",ytArgs(["--no-playlist","-f","bv*[height<=1080]+ba/b[height<=1080]/b","--merge-output-format","mp4","--retries","5","--fragment-retries","5","-o",target,j.source]),{timeout:40*60*1000});
 
     const files=await fs.readdir(dir);
     const src=files.find(x=>x.startsWith("source.") || x==="source.mp4");
