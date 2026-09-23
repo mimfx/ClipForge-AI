@@ -75,39 +75,32 @@ async function job(j){
   const dir=path.join(WORK,j.id);
   await fs.mkdir(dir,{recursive:true});
   try{
-    j.stage="Inspecting"; j.message="Reading video information…"; j.progress=8;
-    let meta=null;
-    let info=null;
+    j.stage="Inspecting"; j.message="Preparing the source…"; j.progress=8;
     const isYouTube=/((youtube\\.com)|(youtu\\.be))/i.test(j.source);
-    if(!isYouTube){
-      info=await run("yt-dlp",ytArgs([...ytExtractArgs,"--no-playlist","--dump-single-json",j.source]),{timeout:120000});
-      try{meta=JSON.parse(info.stdout)}catch{}
-    } else {
-      try{
-        info=await run("yt-dlp",ytArgs([...ytExtractArgs,"--no-playlist","--dump-single-json",j.source]),{timeout:120000});
-        try{meta=JSON.parse(info.stdout)}catch{}
-      }catch(e){
-        j.note="YouTube direct extraction was blocked; using the alternate source service.";
-      }
-    }
-    const duration=Number(meta?.duration)||60;
-
-    j.stage="Downloading"; j.message=isYouTube?"Getting the source through the alternate video service…":"Getting the source video…"; j.progress=18;
+    let meta=null;
     const target=path.join(dir,"source.mp4");
+
     if(isYouTube && COBALT_URL){
-      try{
-        await downloadViaCobalt(j.source,target);
-      }catch(e){
-        j.note=(j.note?j.note+" ":"")+"Alternate source failed; trying direct extraction.";
-        await run("yt-dlp",ytArgs([...ytExtractArgs,"--no-playlist","-f","bv*[height<=1080]+ba/b[height<=1080]/b","--merge-output-format","mp4","--retries","3","--fragment-retries","3","-o",target],{timeout:25*60*1000});
-      }
+      j.message="Getting the YouTube source through the alternate video service…";
+      await downloadViaCobalt(j.source,target);
     } else {
+      const info=await run("yt-dlp",ytArgs([...ytExtractArgs,"--no-playlist","--dump-single-json",j.source]),{timeout:120000});
+      try{meta=JSON.parse(info.stdout)}catch{}
+      j.stage="Downloading"; j.message="Getting the source video…"; j.progress=18;
       await run("yt-dlp",ytArgs([...ytExtractArgs,"--no-playlist","-f","bv*[height<=1080]+ba/b[height<=1080]/b","--merge-output-format","mp4","--retries","3","--fragment-retries","3","-o",target]),{timeout:25*60*1000});
     }
+
     const files=await fs.readdir(dir);
     const src=files.find(x=>x.startsWith("source.") || x==="source.mp4");
     if(!src) throw Error("The video could not be downloaded. Check that the URL is public and accessible.");
 
+    let duration=Number(meta?.duration)||0;
+    if(!duration){
+      try{
+        const probe=await run("ffprobe",["-v","error","-show_entries","format=duration","-of","default=noprint_wrappers=1:nokey=1",path.join(dir,src)],{timeout:60000});
+        duration=Number(probe.stdout)||60;
+      }catch{ duration=60; }
+    }
     j.stage="Transcribing"; j.message="Transcribing the video for highlight detection…"; j.progress=38;
     let transcript=null;
     try{
