@@ -27,6 +27,7 @@ const okurl = u => {
   catch { return false; }
 };
 const run = (cmd,args,opts={}) => exec(cmd,args,{maxBuffer:30*1024*1024,...opts});
+const ytArgs = args => ["--js-runtimes","deno","--remote-components","ejs:github",...args];
 const id = () => crypto.randomUUID();
 
 function safeFile(p){ return p.replaceAll("\\","/").replaceAll("'","\\'"); }
@@ -50,12 +51,12 @@ async function job(j){
   await fs.mkdir(dir,{recursive:true});
   try{
     j.stage="Inspecting"; j.message="Reading video information…"; j.progress=8;
-    const info=await run("yt-dlp",["--no-playlist","--dump-single-json",j.source],{timeout:120000});
+    const info=await run("yt-dlp",ytArgs(["--no-playlist","--dump-single-json",j.source]),{timeout:120000});
     let meta; try{meta=JSON.parse(info.stdout)}catch{}
     const duration=Number(meta?.duration)||60;
 
     j.stage="Downloading"; j.message="Getting the source video…"; j.progress=18;
-    await run("yt-dlp",["--no-playlist","-f","bv*[height<=1080]+ba/b[height<=1080]/b","--merge-output-format","mp4","-o",path.join(dir,"source.%(ext)s"),j.source],{timeout:25*60*1000});
+    await run("yt-dlp",ytArgs(["--no-playlist","-f","bv*[height<=1080]+ba/b[height<=1080]/b","--merge-output-format","mp4","-o",path.join(dir,"source.%(ext)s"),j.source]),{timeout:25*60*1000});
     const files=await fs.readdir(dir);
     const src=files.find(x=>x.startsWith("source."));
     if(!src) throw Error("The video could not be downloaded. Check that the URL is public and accessible.");
