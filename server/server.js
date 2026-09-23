@@ -52,12 +52,51 @@ const okurl = u => {
   catch { return false; }
 };
 const run = (cmd,args,opts={}) => exec(cmd,args,{maxBuffer:30*1024*1024,...opts});
-const ytArgs = args => [
+const ytProfiles = [
+  [],
+  ["--extractor-args","youtube:player_client=android"],
+  ["--extractor-args","youtube:player_client=web_safari"],
+  ["--extractor-args","youtube:player_client=web_embedded"]
+];
+
+const ytArgs = (extra=[], profile=[]) => [
+  "--no-playlist",
+  "--force-ipv4",
+  "--socket-timeout","30",
+  "--retries","3",
+  "--fragment-retries","3",
   "--extractor-args",`youtubepot-bgutilhttp:base_url=http://127.0.0.1:${process.env.BGUTIL_PORT || "4416"}`,
   "--js-runtimes","node",
   "--remote-components","ejs:github",
-  ...args
+  ...profile,
+  ...extra
 ];
+
+async function runYtWithFallback(extra, opts={}){
+  let last;
+  for(const profile of ytProfiles){
+    try{
+      return await run("yt-dlp",ytArgs(extra,profile),opts);
+    }catch(e){
+      last=e;
+    }
+  }
+  throw last || Error("YouTube download failed.");
+}
+
+async function runYtJson(source, opts={}){
+  let last;
+  for(const profile of ytProfiles){
+    try{
+      const r=await run("yt-dlp",ytArgs(["--dump-single-json",source],profile),opts);
+      const parsed=JSON.parse(r.stdout);
+      return parsed;
+    }catch(e){
+      last=e;
+    }
+  }
+  throw last || Error("Could not read YouTube video information.");
+}
 
 
 async function job(j){
@@ -68,11 +107,10 @@ async function job(j){
     const target=path.join(dir,"source.mp4");
     let meta=null;
 
-    const info=await run("yt-dlp",ytArgs(["--no-playlist","--dump-single-json",j.source]),{timeout:180000});
-    try{meta=JSON.parse(info.stdout)}catch{}
+    try{meta=await runYtJson(j.source,{timeout:180000})}catch(e){meta=null;}
 
     j.stage="Downloading"; j.message="Downloading the source video…"; j.progress=18;
-    await run("yt-dlp",ytArgs(["--no-playlist","-f","bv*[height<=1080]+ba/b[height<=1080]/b","--merge-output-format","mp4","--retries","5","--fragment-retries","5","-o",target,j.source]),{timeout:40*60*1000});
+    await runYtWithFallback(["-f","bv*[height<=1080]+ba/b[height<=1080]/b","--merge-output-format","mp4","-o",target,j.source],{timeout:40*60*1000});
 
     const files=await fs.readdir(dir);
     const src=files.find(x=>x.startsWith("source.") || x==="source.mp4");
