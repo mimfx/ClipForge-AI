@@ -29,6 +29,30 @@ const okurl = u => {
 const run = (cmd,args,opts={}) => exec(cmd,args,{maxBuffer:30*1024*1024,...opts});
 const ytArgs = args => ["--js-runtimes","deno","--remote-components","ejs:github",...args];
 const ytExtractArgs = ["--extractor-args","youtube:player_client=default,-android_sdkless"];
+const COBALT_URL = String(process.env.COBALT_URL || "").replace(/\/$/,"");
+
+async function downloadViaCobalt(source, outFile){
+  if(!COBALT_URL) throw new Error("Cobalt source service is not configured.");
+  const response = await fetch(COBALT_URL + "/", {
+    method:"POST",
+    headers:{"Accept":"application/json","Content-Type":"application/json"},
+    body:JSON.stringify({
+      url:source,
+      videoQuality:"1080",
+      downloadMode:"auto",
+      filenameStyle:"basic",
+      alwaysProxy:true
+    })
+  });
+  const data = await response.json().catch(()=>null);
+  if(!response.ok) throw new Error(data?.error?.code || data?.error || `Cobalt returned HTTP ${response.status}`);
+  if(!data?.url) throw new Error(data?.error?.code || "Cobalt did not return a media URL.");
+  const media = await fetch(data.url);
+  if(!media.ok) throw new Error(`Cobalt media download returned HTTP ${media.status}`);
+  const buf = Buffer.from(await media.arrayBuffer());
+  if(buf.length < 10000) throw new Error("Cobalt returned an empty media file.");
+  await fs.writeFile(outFile,buf);
+}
 const id = () => crypto.randomUUID();
 
 function safeFile(p){ return p.replaceAll("\\","/").replaceAll("'","\\'"); }
@@ -52,14 +76,36 @@ async function job(j){
   await fs.mkdir(dir,{recursive:true});
   try{
     j.stage="Inspecting"; j.message="Reading video information…"; j.progress=8;
-    const info=await run("yt-dlp",ytArgs([...ytExtractArgs,"--no-playlist","--dump-single-json",j.source]),{timeout:120000});
-    let meta; try{meta=JSON.parse(info.stdout)}catch{}
+    let meta=null;
+    let info=null;
+    const isYouTube=/((youtube\\.com)|(youtu\\.be))/i.test(j.source);
+    if(!isYouTube){
+      info=await run("yt-dlp",ytArgs([...ytExtractArgs,"--no-playlist","--dump-single-json",j.source]),{timeout:120000});
+      try{meta=JSON.parse(info.stdout)}catch{}
+    } else {
+      try{
+        info=await run("yt-dlp",ytArgs([...ytExtractArgs,"--no-playlist","--dump-single-json",j.source]),{timeout:120000});
+        try{meta=JSON.parse(info.stdout)}catch{}
+      }catch(e){
+        j.note="YouTube direct extraction was blocked; using the alternate source service.";
+      }
+    }
     const duration=Number(meta?.duration)||60;
 
-    j.stage="Downloading"; j.message="Getting the source video…"; j.progress=18;
-    await run("yt-dlp",ytArgs([...ytExtractArgs,"--no-playlist","-f","bv*[height<=1080]+ba/b[height<=1080]/b","--merge-output-format","mp4","--retries","3","--fragment-retries","3","-o",path.join(dir,"source.%(ext)s"),j.source]),{timeout:25*60*1000});
+    j.stage="Downloading"; j.message=isYouTube?"Getting the source through the alternate video service…":"Getting the source video…"; j.progress=18;
+    const target=path.join(dir,"source.mp4");
+    if(isYouTube && COBALT_URL){
+      try{
+        await downloadViaCobalt(j.source,target);
+      }catch(e){
+        j.note=(j.note?j.note+" ":"")+"Alternate source failed; trying direct extraction.";
+        await run("yt-dlp",ytArgs([...ytExtractArgs,"--no-playlist","-f","bv*[height<=1080]+ba/b[height<=1080]/b","--merge-output-format","mp4","--retries","3","--fragment-retries","3","-o",target],{timeout:25*60*1000});
+      }
+    } else {
+      await run("yt-dlp",ytArgs([...ytExtractArgs,"--no-playlist","-f","bv*[height<=1080]+ba/b[height<=1080]/b","--merge-output-format","mp4","--retries","3","--fragment-retries","3","-o",target]),{timeout:25*60*1000});
+    }
     const files=await fs.readdir(dir);
-    const src=files.find(x=>x.startsWith("source."));
+    const src=files.find(x=>x.startsWith("source.") || x==="source.mp4");
     if(!src) throw Error("The video could not be downloaded. Check that the URL is public and accessible.");
 
     j.stage="Transcribing"; j.message="Transcribing the video for highlight detection…"; j.progress=38;
