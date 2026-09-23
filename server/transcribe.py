@@ -16,4 +16,4 @@ top.sort(key=lambda i:segs[i]["start"])
 selected=top[:5]
 titles=[segs[i]["text"][:70] for i in selected]
 vals=[round(scores[i],1) for i in selected]
-print(json.dumps({"segments":segs,"titles":titles,"scores":vals}))
+selected_data=[{"start":segs[i]["start"],"end":segs[i]["end"],"text":segs[i]["text"]} for i in selected]\nprint(json.dumps({"segments":segs,"selected":selected_data,"titles":titles,"scores":vals}))
