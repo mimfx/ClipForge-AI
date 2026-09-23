@@ -31,29 +31,39 @@ const ytArgs = args => ["--js-runtimes","deno","--remote-components","ejs:github
 const ytExtractArgs = ["--extractor-args","youtube:player_client=default,-android_sdkless"];
 const COBALT_URL = String(process.env.COBALT_URL || "http://127.0.0.1:9000").replace(/\/$/,"");
 
-async function downloadViaCobalt(source, outFile){
-  if(!COBALT_URL) throw new Error("Cobalt source service is not configured.");
-  const response = await fetch(COBALT_URL + "/", {
-    method:"POST",
-    headers:{"Accept":"application/json","Content-Type":"application/json"},
-    body:JSON.stringify({
-      url:source,
-      videoQuality:"1080",
-      downloadMode:"auto",
-      filenameStyle:"basic",
-      alwaysProxy:true
-    })
-  });
-  const data = await response.json().catch(()=>null);
-  if(!response.ok) throw new Error(data?.error?.code || data?.error || `Cobalt returned HTTP ${response.status}`);
-  if(!data?.url) throw new Error(data?.error?.code || "Cobalt did not return a media URL.");
-  const media = await fetch(data.url);
-  if(!media.ok) throw new Error(`Cobalt media download returned HTTP ${media.status}`);
-  const buf = Buffer.from(await media.arrayBuffer());
-  if(buf.length < 10000) throw new Error("Cobalt returned an empty media file.");
-  await fs.writeFile(outFile,buf);
-}
-const id = () => crypto.randomUUID();
+async function downloadViaPiped(source, outFile){
+  const m=source.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|live\/))([A-Za-z0-9_-]{11})/i);
+  if(!m) throw new Error("Could not read the YouTube video ID.");
+  const id=m[1];
+  const instances=[
+    "https://pipedapi.kavin.rocks",
+    "https://api.piped.yt",
+    "https://pipedapi.leptons.xyz",
+    "https://pipedapi.nosebs.ru"
+  ];
+  let last="Piped source unavailable.";
+  for(const base of instances){
+    try{
+      const res=await fetch(base+"/streams/"+id,{headers:{"User-Agent":"ClipForge/1.0","Accept":"application/json"},signal:AbortSignal.timeout(30000)});
+      if(!res.ok) throw new Error("HTTP "+res.status);
+      const data=await res.json();
+      if(data?.hls){
+        await run("ffmpeg",["-y","-i",data.hls,"-c","copy","-t","3600",outFile],{timeout:70*60*1000});
+      } else {
+        const streams=(data?.videoStreams||[])
+          .filter(x=>x?.url && x?.mimeType?.startsWith("video/mp4") && !x.videoOnly)
+          .sort((x,y)=>(Number(y.height)||0)-(Number(x.height)||0));
+        const stream=streams.find(x=>(Number(x.height)||0)<=1080)||streams[0];
+        if(!stream) throw new Error("No downloadable MP4 stream returned.");
+        await run("ffmpeg",["-y","-i",stream.url,"-c","copy",outFile],{timeout:70*60*1000});
+      }
+      const st=await fs.stat(outFile);
+      if(st.size>10000) return {duration:Number(data?.duration)||0};
+      throw new Error("Empty video returned.");
+    }catch(e){ last=String(e?.message||e); }
+  }
+  throw new Error("YouTube source could not be fetched through the available source servers: "+last);
+}const id = () => crypto.randomUUID();
 
 function safeFile(p){ return p.replaceAll("\\","/").replaceAll("'","\\'"); }
 
@@ -80,9 +90,10 @@ async function job(j){
     let meta=null;
     const target=path.join(dir,"source.mp4");
 
-    if(isYouTube && COBALT_URL){
-      j.message="Getting the YouTube source through the alternate video service…";
-      await downloadViaCobalt(j.source,target);
+    if(isYouTube){
+      j.stage="Downloading"; j.message="Getting the YouTube source…"; j.progress=18;
+      const pipedInfo=await downloadViaPiped(j.source,target);
+      meta={duration:pipedInfo.duration};
     } else {
       const info=await run("yt-dlp",ytArgs([...ytExtractArgs,"--no-playlist","--dump-single-json",j.source]),{timeout:120000});
       try{meta=JSON.parse(info.stdout)}catch{}
