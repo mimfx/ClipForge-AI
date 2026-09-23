@@ -27,9 +27,12 @@ const okurl = u => {
   catch { return false; }
 };
 const run = (cmd,args,opts={}) => exec(cmd,args,{maxBuffer:30*1024*1024,...opts});
-const ytArgs = args => ["--js-runtimes","deno","--remote-components","ejs:github",...args];
-const ytExtractArgs = [];
-const COBALT_URL = String(process.env.COBALT_URL || "http://127.0.0.1:9000").replace(/\/$/,"");
+const ytArgs = args => [
+  "--js-runtimes","node",
+  "--remote-components","ejs:github",
+  "--extractor-args",`youtubepot-bgutilscript:script_path=${process.env.BGUTIL_SCRIPT || "/opt/bgutil/server/build/generate_once.js"}`,
+  ...args
+];
 
 
 async function job(j){
