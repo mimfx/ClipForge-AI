@@ -27,7 +27,6 @@ const okurl = u => {
   catch { return false; }
 };
 const run = (cmd,args,opts={}) => exec(cmd,args,{maxBuffer:30*1024*1024,...opts});
-const run = (cmd,args,opts={}) => exec(cmd,args,{maxBuffer:30*1024*1024,...opts});
 const ytArgs = args => ["--js-runtimes","deno","--remote-components","ejs:github",...args];
 const ytExtractArgs = ["--extractor-args","youtube:player_client=android_vr,web_safari,web"];
 const id = () => crypto.randomUUID();
