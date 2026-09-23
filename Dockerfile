@@ -2,7 +2,10 @@ FROM node:20-bookworm
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg python3 python3-pip ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg python3 python3-pip ca-certificates curl unzip && rm -rf /var/lib/apt/lists/*
+
+# yt-dlp needs a JavaScript runtime for current YouTube extraction.
+RUN curl -fsSL https://deno.land/install.sh | sh && ln -sf /root/.deno/bin/deno /usr/local/bin/deno
 
 COPY requirements.txt ./requirements.txt
 RUN pip3 install --break-system-packages --no-cache-dir -r requirements.txt
