@@ -28,7 +28,7 @@ const okurl = u => {
 };
 const run = (cmd,args,opts={}) => exec(cmd,args,{maxBuffer:30*1024*1024,...opts});
 const ytArgs = args => ["--js-runtimes","deno","--remote-components","ejs:github",...args];
-const ytExtractArgs = ["--extractor-args","youtube:player_client=android_vr,web_safari,web"];
+const ytExtractArgs = ["--extractor-args","youtube:player_client=default,-android_sdkless"];
 const id = () => crypto.randomUUID();
 
 function safeFile(p){ return p.replaceAll("\\","/").replaceAll("'","\\'"); }
@@ -57,7 +57,7 @@ async function job(j){
     const duration=Number(meta?.duration)||60;
 
     j.stage="Downloading"; j.message="Getting the source video…"; j.progress=18;
-    await run("yt-dlp",ytArgs([...ytExtractArgs,"--no-playlist","-f","bv*[height<=1080]+ba/b[height<=1080]/b","--merge-output-format","mp4","-o",path.join(dir,"source.%(ext)s"),j.source]),{timeout:25*60*1000});
+    await run("yt-dlp",ytArgs([...ytExtractArgs,"--no-playlist","-f","bv*[height<=1080]+ba/b[height<=1080]/b","--merge-output-format","mp4","--retries","3","--fragment-retries","3","-o",path.join(dir,"source.%(ext)s"),j.source]),{timeout:25*60*1000});
     const files=await fs.readdir(dir);
     const src=files.find(x=>x.startsWith("source."));
     if(!src) throw Error("The video could not be downloaded. Check that the URL is public and accessible.");
