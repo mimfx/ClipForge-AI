@@ -20,7 +20,7 @@ app.use((req,res,next)=>{
   if(req.method === "OPTIONS") return res.sendStatus(204);
   next();
 });
-app.use(express.static(path.join(ROOT,"public")));
+// API routes are registered before the static frontend so /api/* can never be mistaken for index.html.
 
 const okurl = u => {
   try { const x = new URL(u); return ["http:","https:"].includes(x.protocol); }
@@ -117,6 +117,8 @@ app.post("/api/clip",(req,res)=>{
   res.status(202).json({id:j.id});
 });
 app.get("/api/jobs/:id",(req,res)=>{const j=jobs.get(req.params.id);if(!j)return res.status(404).json({error:"Job not found"});res.json(j)});
+app.use("/api", (req,res)=>res.status(404).json({error:"ClipForge API route not found.",path:req.path,method:req.method}));
+app.use(express.static(path.join(ROOT,"public")));
 app.use("/media/:id",(req,res,next)=>jobs.has(req.params.id)?next():res.sendStatus(404));
 app.use("/media",express.static(WORK));
 app.get("/{*splat}",(req,res)=>res.sendFile(path.join(ROOT,"public","index.html")));
