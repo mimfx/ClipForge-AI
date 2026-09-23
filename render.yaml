@@ -11,23 +11,9 @@ services:
         value: cpu
       - key: WHISPER_COMPUTE
         value: int8
-      - key: COBALT_URL
-        value: https://clipforge-cobalt.onrender.com
-  - type: web
-    name: clipforge-cobalt
-    runtime: image
-    plan: free
-    image:
-      url: ghcr.io/imputnet/cobalt:11
-    healthCheckPath: /
-    envVars:
       - key: API_URL
-        value: https://clipforge-cobalt.onrender.com/
+        value: http://127.0.0.1:9000/
       - key: API_PORT
-        value: "10000"
-      - key: API_LISTEN_ADDRESS
-        value: "0.0.0.0"
-      - key: CORS_WILDCARD
-        value: "1"
+        value: "9000"
       - key: FORCE_LOCAL_PROCESSING
         value: "always"
