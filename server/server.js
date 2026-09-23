@@ -28,9 +28,9 @@ const okurl = u => {
 };
 const run = (cmd,args,opts={}) => exec(cmd,args,{maxBuffer:30*1024*1024,...opts});
 const ytArgs = args => [
+  "--extractor-args",`youtubepot-bgutilhttp:base_url=http://127.0.0.1:${process.env.BGUTIL_PORT || "4416"}`,
   "--js-runtimes","node",
   "--remote-components","ejs:github",
-  "--extractor-args",`youtubepot-bgutilscript:script_path=${process.env.BGUTIL_SCRIPT || "/opt/bgutil/server/build/generate_once.js"}`,
   ...args
 ];
 
