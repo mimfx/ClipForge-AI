@@ -29,7 +29,7 @@ const okurl = u => {
 const run = (cmd,args,opts={}) => exec(cmd,args,{maxBuffer:30*1024*1024,...opts});
 const ytArgs = args => ["--js-runtimes","deno","--remote-components","ejs:github",...args];
 const ytExtractArgs = ["--extractor-args","youtube:player_client=default,-android_sdkless"];
-const COBALT_URL = String(process.env.COBALT_URL || "").replace(/\/$/,"");
+const COBALT_URL = String(process.env.COBALT_URL || "http://127.0.0.1:9000").replace(/\/$/,"");
 
 async function downloadViaCobalt(source, outFile){
   if(!COBALT_URL) throw new Error("Cobalt source service is not configured.");
