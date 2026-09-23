@@ -12,6 +12,31 @@ const PORT = Number(process.env.PORT || 3000);
 const ROOT = process.cwd();
 const WORK = path.join(ROOT, "work");
 
+const id = () => crypto.randomUUID();
+
+function safeFile(p){
+  return String(p).replace(/\\/g,"\\\\").replace(/\x27/g,"\\\x27");
+}
+
+async function writeSrtForClip(segments,start,end,file){
+  const overlapping=segments.filter(x=>Number(x.end)>start && Number(x.start)<end);
+  if(!overlapping.length) return false;
+  const ts=n=>{
+    n=Math.max(0,n);
+    const ms=Math.round((n-Math.floor(n))*1000);
+    const total=Math.floor(n);
+    const sec=total%60, min=Math.floor(total/60)%60, hr=Math.floor(total/3600);
+    return String(hr).padStart(2,"0")+":"+String(min).padStart(2,"0")+":"+String(sec).padStart(2,"0")+","+String(ms).padStart(3,"0");
+  };
+  const lines=overlapping.map((x,i)=>{
+    const a=Math.max(start,Number(x.start))-start;
+    const b=Math.min(end,Number(x.end))-start;
+    return String(i+1)+"\\n"+ts(a)+" --> "+ts(Math.max(a+0.2,b))+"\\n"+String(x.text||"").trim()+"\\n";
+  });
+  await fs.writeFile(file,lines.join("\\n"),"utf8");
+  return true;
+}
+
 app.use(express.json({limit:"30kb"}));
 app.use((req,res,next)=>{
   res.setHeader("Access-Control-Allow-Origin", process.env.ALLOW_ORIGIN || "*");
@@ -107,7 +132,7 @@ async function job(j){
 }
 
 app.get("/health",(req,res)=>res.json({ok:true,service:"ClipForge AI",time:new Date().toISOString()}));
-app.get("/api/health",(req,res)=>res.json({ok:true}));
+app.get("/api/health",(req,res)=>res.json({ok:true,service:"ClipForge API",version:"1.0.1"}));
 app.post("/api/clip",(req,res)=>{
   const source=String(req.body?.url||"").trim();
   if(!okurl(source)) return res.status(400).json({error:"Enter a valid http/https video URL."});
