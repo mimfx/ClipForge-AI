@@ -1,0 +1,17 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MIM FX FF PANEL</title><style>
+*{box-sizing:border-box}body{margin:0;padding:22px;background:#090909;color:#fff;font-family:Arial,sans-serif}.brand{font-size:28px;font-weight:900;color:#ff3030}.muted{color:#999;font-size:13px}.box,.card{background:#171717;border:1px solid #333;border-radius:14px;padding:16px;margin:14px 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{margin:0}h3{font-size:14px}button{width:100%;padding:12px;border:0;border-radius:8px;background:#e32636;color:white;font-weight:bold;margin-top:12px}small{color:#aaa}.value{color:#00e676;font-size:13px;margin-top:10px}
+</style></head><body><div class="brand">MIM FX</div><h3>FREE FIRE GAMING OPTIMIZER</h3><p class="muted">Android utility • v1.0 • No game modification</p>
+<div class="box"><b>DEVICE MEMORY</b><div id="ram" class="value">Tap refresh to read Android memory.</div><button onclick="ram()">REFRESH RAM INFO</button></div>
+<div class="grid">
+<div class="card"><h3>⚡ PERFORMANCE CHECK</h3><small>Practical lag-reduction checklist.</small><button onclick="checklist()">VIEW TIPS</button></div>
+<div class="card"><h3>🎯 AIM TRAINER</h3><small>Practice drag and tracking accuracy.</small><button onclick="location.href='trainer.html'">OPEN TRAINER</button></div>
+<div class="card"><h3>🎮 LAUNCH GAME</h3><small>Open installed Free Fire.</small><button onclick="launch()">LAUNCH FREE FIRE</button><div id="launchResult" class="value"></div></div>
+<div class="card"><h3>📱 SENSITIVITY</h3><small>Save a personal practice profile.</small><button onclick="saveProfile()">SAVE PROFILE</button><div id="profile" class="value"></div></div>
+</div>
+<div class="box"><b>What this app can do</b><p class="muted">Read Android memory information, launch Free Fire, provide training and settings guidance. Android does not let a normal app forcibly clear other apps' RAM or change Free Fire aiming, recoil, sensitivity, FPS, or game files. No anti-ban or headshot guarantee.</p></div>
+<script>
+function ram(){document.getElementById('ram').textContent=window.MimFX?MimFX.memoryInfo():'Native Android bridge unavailable in browser preview.'}
+function launch(){document.getElementById('launchResult').textContent=window.MimFX?MimFX.launchFreeFire():'Install the APK to launch the game.'}
+function checklist(){alert('Before playing: close unused apps manually, enable your phone Game Mode, use Smooth graphics, keep battery saver off while gaming, and avoid overheating.')}
+function saveProfile(){localStorage.setItem('mimfx-profile','Personal practice');document.getElementById('profile').textContent='Practice profile saved on this device.'}
+</script></body></html>
