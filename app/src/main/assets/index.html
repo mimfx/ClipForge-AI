@@ -8,10 +8,17 @@
 <div class="card"><h3>🎮 LAUNCH GAME</h3><small>Open installed Free Fire.</small><button onclick="launch()">LAUNCH FREE FIRE</button><div id="launchResult" class="value"></div></div>
 <div class="card"><h3>📱 SENSITIVITY</h3><small>Save a personal practice profile.</small><button onclick="saveProfile()">SAVE PROFILE</button><div id="profile" class="value"></div></div>
 </div>
+<div class="box"><b>FLOATING GAMING PANEL</b><div id="overlayStatus" class="value">Checking overlay permission…</div><button onclick="enablePanel()">ENABLE / OPEN FLOATING PANEL</button><button onclick="stopPanel()">STOP FLOATING PANEL</button></div>
+<div class="box"><b>BATTERY TEMPERATURE</b><div id="temp" class="value">Tap refresh to read battery sensor.</div><button onclick="batteryTemp()">CHECK BATTERY TEMPERATURE</button></div>
 <div class="box"><b>What this app can do</b><p class="muted">Read Android memory information, launch Free Fire, provide training and settings guidance. Android does not let a normal app forcibly clear other apps' RAM or change Free Fire aiming, recoil, sensitivity, FPS, or game files. No anti-ban or headshot guarantee.</p></div>
 <script>
+function refreshOverlayStatus(){document.getElementById('overlayStatus').textContent=window.MimFX?MimFX.overlayStatus():'Available in installed APK.'}
+function enablePanel(){if(window.MimFX)MimFX.enableFloatingPanel();else alert('Install the APK to use the Android floating panel.')}
+function stopPanel(){if(window.MimFX)MimFX.stopFloatingPanel()}
+function batteryTemp(){document.getElementById('temp').textContent=window.MimFX?MimFX.batteryTemperature():'Native Android sensor available in APK.'}
 function ram(){document.getElementById('ram').textContent=window.MimFX?MimFX.memoryInfo():'Native Android bridge unavailable in browser preview.'}
 function launch(){document.getElementById('launchResult').textContent=window.MimFX?MimFX.launchFreeFire():'Install the APK to launch the game.'}
 function checklist(){alert('Before playing: close unused apps manually, enable your phone Game Mode, use Smooth graphics, keep battery saver off while gaming, and avoid overheating.')}
+refreshOverlayStatus();
 function saveProfile(){localStorage.setItem('mimfx-profile','Personal practice');document.getElementById('profile').textContent='Practice profile saved on this device.'}
 </script></body></html>
